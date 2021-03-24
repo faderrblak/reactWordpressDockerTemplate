@@ -1,0 +1,15 @@
+#
+/*
+!web_server/
+!.gitignore
+!docker-compose.yaml
+!init-letsencrypt.sh
+
+# ignore node dependency directories
+node_modules/
+
+# ignore log files and databases
+*.log
+*.sql
+!wordpress_data.sql
+*.sqlite

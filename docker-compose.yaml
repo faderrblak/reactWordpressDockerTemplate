@@ -1,0 +1,81 @@
+version: "3.2"
+
+services:
+  database:
+    image: mysql:8.0
+    container_name: database-cont
+    restart: unless-stopped
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-wordpress}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-password123}
+      - MYSQL_USER=${MYSQL_USER:-myuser}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-password123}
+    volumes:
+      - ./db_data:/var/lib/mysqldb
+    command: "--default-authentication-plugin=mysql_native_password"
+    networks:
+      - app-network
+
+  phpmyadmin:
+    depends_on:
+      - database
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin-cont
+    restart: unless-stopped
+    ports:
+      - '8080:80'
+    environment:
+      - PMA_HOST=${PMA_HOST:-database}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-password123}
+    networks:
+      - app-network
+
+  wordpress:
+    depends_on:
+      - database
+    image: wordpress:5.7-fpm-alpine
+    container_name: wordpress-cont
+    restart: unless-stopped
+    environment:
+      - WORDPRESS_DB_HOST=database
+      - WORDPRESS_DB_USER=${MYSQL_USER:-myuser}
+      - WORDPRESS_DB_PASSWORD=${MYSQL_PASSWORD:-password123}
+      - WORDPRESS_DB_NAME=wordpress
+    volumes: ['./wordpress:/var/www/html']
+    networks:
+      - app-network
+
+  nginx:
+    build:
+      context: ./web_server
+      dockerfile: Dockerfile
+      args:
+        react_dir: ${REACT_PROJECT_DIR:-reactapp}
+    container_name: nginx-cont
+    restart: unless-stopped
+    ports:
+      - 80:80
+  ###  remove hash (#) below when ready to configure Letsencrypt of hosting platform
+  #   - 443:443
+    volumes: 
+      - './wordpress:/var/www/html'
+  #    - ./db_data/certbot/conf:/etc/letsencrypt
+  #    - ./db_data/certbot/www:/var/www/certbot
+    depends_on:
+      - wordpress
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    networks:
+      - app-network
+  
+  ### remove hash (#) below when ready to configure Letsencrypt of hosting platform
+  #certbot:
+  #  image: certbot/certbot
+  #  container_name: certbot-cont
+  #  volumes: 
+  #    - ./db_data/certbot/conf:/etc/letsencrypt
+  #    - ./db_data/certbot/www:/var/www/certbot
+  #  entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+networks:
+  app-network:
+    driver: bridge
